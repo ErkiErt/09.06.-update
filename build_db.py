@@ -20,6 +20,7 @@ EXCEL_PATHS = [
     BASE / "data" / "Zenith_Materjalibaas_LOPLIK.xlsx",
 ]
 
+# FIX #3: Täiendatud TEXT_REPLACEMENTS – lisatud kallim/kalleim fix.
 TEXT_REPLACEMENTS = {
     "kõige " + "kõrg kemikaal": "parim keemiline vastupidavus",
     "kõige " + "kõrg temp": "kõrgeim temp",
@@ -27,6 +28,10 @@ TEXT_REPLACEMENTS = {
     "kõige " + "tugevam": "kõrgeim tugevus",
     "kõige " + "pehmem": "kõige pehme",
     "kõige " + "kõvem": "kõrgeim kõvadus",
+    "kõige " + "kallim": "kõrgeima hinnaklassiga",
+    "kallim": "kõrgema hinnaklassiga",
+    "kõige " + "odavam": "soodsama hinnaklassiga",
+    "odavam": "soodsam",
 }
 
 SHEET_MAP = {

@@ -23,11 +23,7 @@ DISPLAY_REPLACEMENTS = {
 
 
 def clean_display_text(value: Any) -> Any:
-    """FIX D: clean user-visible wording at runtime.
-
-    This protects the app even when Streamlit is running with an older
-    SQLite/Excel payload that still contains stale wording.
-    """
+    """FIX D: clean user-visible wording at runtime."""
     if value is None or not isinstance(value, str):
         return value
     text = value
@@ -111,54 +107,61 @@ MATERIAL_INTENTS = {
     "material_nr": "nr",
 }
 
+# FIX #2: Eemaldatud liiga lühikesed/ebatäpsed tokenid ("oli", "lipaagi").
+# Kõik terminid peavad olema vähemalt 4 tähemärki ja üheselt tõlgendatavad.
 DIRECT_TERMS = {
-    "lumesahk": "lumelukkamine",
-    "sahk": "lumelukkamine",
-    "lume sahk": "lumelukkamine",
-    "snow plow": "lumelukkamine",
-    "snow blade": "lumelukkamine",
-    "oli": "oilfuel",
-    "lipaagi": "oilfuel",
-    "olipaagi": "oilfuel",
-    "kutus": "oilfuel",
-    "bensiin": "oilfuel",
-    "diisel": "oilfuel",
-    "uv": "weather_uv",
-    "osoon": "weather_uv",
-    "ilmastik": "weather_uv",
-    "kulum": "abrasion_wear",
-    "kulumine": "abrasion_wear",
-    "kulumiskindel": "abrasion_wear",
-    "aur": "water_steam",
-    "steam": "water_steam",
-    "vesi": "water_steam",
-    "tulekindel": "construction_fire",
-    "fire": "construction_fire",
-    "food": "food_contact",
-    "fda": "food_contact",
-    "toiduklass": "food_contact",
-    "kuum": "high_temperature",
-    "korge temperatuur": "high_temperature",
-    "kylm": "low_temperature",
-    "kulm": "low_temperature",
-    "kemikaal": "chemical",
-    "keemia": "chemical",
+    "lumesahk":           "lumelukkamine",
+    "sahk":               "lumelukkamine",
+    "lume sahk":          "lumelukkamine",
+    "snow plow":          "lumelukkamine",
+    "snow blade":         "lumelukkamine",
+    "olipaagi":           "oilfuel",
+    "olipaak":            "oilfuel",
+    "olipump":            "oilfuel",
+    "kutuse":             "oilfuel",
+    "kytuse":             "oilfuel",
+    "bensiin":            "oilfuel",
+    "diisel":             "oilfuel",
+    "hüdraulika":         "oilfuel",
+    "hudraulika":         "oilfuel",
+    "uv":                 "weather_uv",
+    "osoon":              "weather_uv",
+    "ilmastik":           "weather_uv",
+    "kulum":              "abrasion_wear",
+    "kulumine":           "abrasion_wear",
+    "kulumiskindel":      "abrasion_wear",
+    "aur":                "water_steam",
+    "steam":              "water_steam",
+    "vesi":               "water_steam",
+    "tulekindel":         "construction_fire",
+    "fire":               "construction_fire",
+    "food":               "food_contact",
+    "fda":                "food_contact",
+    "toiduklass":         "food_contact",
+    "kuum":               "high_temperature",
+    "korge temperatuur":  "high_temperature",
+    "kylm":               "low_temperature",
+    "kulm":               "low_temperature",
+    "kemikaal":           "chemical",
+    "keemia":             "chemical",
 }
 
 # Värvid ei mõjuta materjali sobivust.
-# Filtreeritakse nii kasutaja päringust kui ka teksti blob-vastete hulgast.
 COLOR_TOKENS: frozenset[str] = frozenset({
     "must", "valge", "hall", "punane", "sinine", "roheline", "kollane", "pruun",
     "black", "white", "grey", "gray", "red", "blue", "green", "yellow", "brown",
     "nat", "natural", "beige", "clear", "transparent",
 })
 
-# Tekstisõnad, mis on värviga seotud — eemaldatakse blob-matchist
 COLOR_BLOB_PATTERNS: tuple[str, ...] = (
     r"\bmust\b", r"\bvalge\b", r"\bhall\b", r"\bpunane\b",
     r"\bblack\b", r"\bwhite\b", r"\bgr[ae]y\b", r"\bred\b",
     r"\bnat\b", r"\bnatural\b",
 )
+
+# FIX #1: Minimaalne skoor tulemuse kuvamiseks.
+# Tühja päringu korral kuvatakse kõik (lävend 0), muidu ainult relevantsed.
+SCORE_THRESHOLD = 10
 
 
 @dataclass
@@ -183,7 +186,6 @@ def normalize_text(value: Any) -> str:
 
 
 def strip_color_from_blob(blob: str) -> str:
-    """Eemaldab värvisemantika blob-tekstist, et värvsõnad ei annaks tekstivaste skoori."""
     for pat in COLOR_BLOB_PATTERNS:
         blob = re.sub(pat, " ", blob)
     return blob
@@ -295,7 +297,7 @@ def thickness_matches(thickness_text: Any, requested_mm: float | None) -> bool:
     if requested_mm is None:
         return True
     text = normalize_text(thickness_text).replace(",", ".")
-    parts = re.split(r"[;,\s]+", text)
+    parts = re.split(r"[;\s]+", text)
     for part in parts:
         part_nums = [float(m) for m in re.findall(r"\d+(?:\.\d+)?", part)]
         if not part_nums:
@@ -319,7 +321,6 @@ def variant_thickness_matches(variants: list[dict[str, Any]], product_id: str, r
 
 
 def build_text_blob(row: dict[str, Any]) -> str:
-    """Ehitab otsitava teksti. Värviväli ja värvisõnad on eemaldatud."""
     fields = [
         "product_name",
         "article_code",
@@ -335,15 +336,7 @@ def build_text_blob(row: dict[str, Any]) -> str:
 
 
 def quality_bonus(row: dict[str, Any]) -> int:
-    """Arvutab kvaliteediboonuse toote omaduste põhjal.
-
-    Kõrgem temp-vahemik, kulumiskindlus ja venivus tõstavad skoori.
-    Boonus lisandub alati, mitte ainult puhul kui kasutaja seda küsis —
-    nii soovitab süsteem vaikimisi parema omadustega tooteid.
-    """
     bonus = 0
-
-    # Temperatuurivahemiku laius — laiem vahemik = kõrgem kvaliteet
     min_t = row.get("min_temp_c")
     max_t = row.get("max_temp_c")
     if min_t is not None and max_t is not None:
@@ -355,13 +348,11 @@ def quality_bonus(row: dict[str, Any]) -> int:
         elif temp_range >= 100:
             bonus += 5
 
-    # Kulumiskindluse omadus (property_tags või application_categories)
     tags = split_codes(row.get("property_tags"))
     apps = split_codes(row.get("application_categories"))
     if "abrasion_resistance" in tags or "abrasion_wear" in apps:
         bonus += 8
 
-    # Venivus — kõrgem elongation_percent = parem elastsus = keerukam toode
     elongation = row.get("elongation_percent")
     if elongation is not None:
         try:
@@ -375,7 +366,6 @@ def quality_bonus(row: dict[str, Any]) -> int:
         except (ValueError, TypeError):
             pass
 
-    # Spetsiifilised omaduste märgendid, mis viitavad kõrgemale klassile
     premium_tags = {
         "food_grade", "flame_retardant", "fire_resistance",
         "oil_fuel_resistance", "chemical_resistance", "uv_weather_resistance",
@@ -421,16 +411,24 @@ def recommend(
     variants = data["variants"]
     results: list[dict[str, Any]] = []
 
+    # FIX #1: Tühja päringu korral lävend 0 (näita kõiki), muidu SCORE_THRESHOLD.
+    has_active_query = bool(
+        query.strip() or parsed.intents or parsed.required_materials
+        or parsed.service_temp_c is not None
+        or parsed.hardness is not None
+        or parsed.thickness_mm is not None
+    )
+    effective_threshold = SCORE_THRESHOLD if has_active_query else 0
+
     for row in data["products"]:
         material = str(row.get("material_code") or "")
         apps = split_codes(row.get("application_categories"))
         tags = split_codes(row.get("property_tags"))
-        blob = build_text_blob(row)  # värvid juba eemaldatud
+        blob = build_text_blob(row)
         score = 0
         reasons: list[str] = []
         warnings: list[str] = []
 
-        # Tekstivaste — värvitokenid on mh päringust eemaldatud
         if query.strip():
             token_hits = [
                 token for token in parsed.tokens
@@ -440,7 +438,6 @@ def recommend(
                 score += min(25, len(set(token_hits)) * 5)
                 reasons.append("tekstivaste: " + ", ".join(sorted(set(token_hits))[:5]))
 
-        # Intent reeglid
         for intent in parsed.intents:
             rule = INTENT_RULES.get(intent) or INTENT_RULES.get(normalize_text(intent))
             if not rule:
@@ -462,7 +459,6 @@ def recommend(
                 score -= 30
                 warnings.append(f"{material.upper()} võib selle kasutuse jaoks olla nõrk valik")
 
-        # Materjali filter
         if parsed.required_materials:
             if material in parsed.required_materials:
                 score += 45
@@ -471,7 +467,6 @@ def recommend(
                 score -= 80
                 warnings.append("ei vasta valitud materjalile")
 
-        # Temperatuur
         if parsed.service_temp_c is not None:
             min_temp = row.get("min_temp_c")
             max_temp = row.get("max_temp_c")
@@ -486,7 +481,6 @@ def recommend(
                         f"({float(min_temp):g}..{float(max_temp):g} °C)"
                     )
 
-        # Shore kõvadus — ainult kui kasutaja seda küsis; EI määra kulumiskindlust
         if parsed.hardness is not None:
             row_hardness = row.get("hardness_shore_a")
             if row_hardness is not None:
@@ -501,7 +495,6 @@ def recommend(
                     score -= 10
                     warnings.append(f"kõvadus erineb ({float(row_hardness):g} vs {parsed.hardness:g} Shore A)")
 
-        # Paksus
         if parsed.thickness_mm is not None:
             product_match = thickness_matches(row.get("thickness_text"), parsed.thickness_mm)
             variant_match = variant_thickness_matches(variants, str(row.get("product_id")), parsed.thickness_mm)
@@ -512,13 +505,9 @@ def recommend(
                 score -= 60
                 warnings.append(f"paksust {parsed.thickness_mm:g} mm ei leitud")
 
-        # Kvaliteediboonus — laiema temp-vahemiku, kulumiskindluse ja venivusega
-        # tooted saavad väikese eelise, nii eelistatakse paremate omadustega tooteid.
-        if score > 0:
+        # FIX #5: quality_bonus ainult siis, kui skoor on juba vähemalt 20.
+        if score >= 20:
             score += quality_bonus(row)
-
-        if not query.strip() and not parsed.intents and not parsed.required_materials:
-            score += 1
 
         if "needs_classification" in apps:
             warnings.append("kasutusvaldkond vajab ülevaatust")
@@ -530,7 +519,8 @@ def recommend(
         }:
             warnings.append("soovita kontrollida PDF lehe viitega")
 
-        if score > 0:
+        # FIX #1: Kasuta lävendit nõrkade vastete filtreerimiseks.
+        if score > effective_threshold:
             result = dict(row)
             for key, value in list(result.items()):
                 result[key] = clean_display_text(value)

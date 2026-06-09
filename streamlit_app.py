@@ -75,10 +75,7 @@ def as_df(rows):
 
 # ── Tõlkekaardid ──────────────────────────────────────────────────────────
 
-# application_categories ja property_tags → loetav eesti keel
-# "generalsheet" viitab Exceli lehenimele — ei kuvata kunagi kasutajale
 BADGE_LABELS: dict[str, str] = {
-    # application_categories
     "oilfuel":               "Õli / kütus",
     "weather_uv":            "UV / ilmastik",
     "abrasion_wear":         "Kulumiskindlus",
@@ -88,7 +85,6 @@ BADGE_LABELS: dict[str, str] = {
     "high_temperature":      "Kõrge temperatuur",
     "low_temperature":       "Madal temperatuur",
     "chemical":              "Keemiline vastupidavus",
-    # property_tags
     "abrasion_resistance":   "Kulumiskindel",
     "oil_fuel_resistance":   "Õlikindel",
     "uv_weather_resistance": "UV / ilmastikukindel",
@@ -103,10 +99,9 @@ BADGE_LABELS: dict[str, str] = {
     "premium_strength":      "Premium",
     "chemical_resistance":   "Keemiline vastupidavus",
     "elasticity":            "Kõrge elastsus",
-    "needs_classification":  "",   # peidetud — sisemine märge
+    "needs_classification":  "",
 }
 
-# source_status ja verification_status → eesti keel
 STATUS_LABELS: dict[str, str] = {
     "catalog_extract_needs_pdf_page_reference": "Kinnitamata – PDF viide puudub",
     "catalogextractneedspdfpagereference":       "Kinnitamata – PDF viide puudub",
@@ -134,7 +129,6 @@ STATUS_LABELS: dict[str, str] = {
     "catalogextractneedspdfpagereference 1":    "Kinnitamata – PDF viide puudub",
 }
 
-# Materjali põhikirjeldused kasutajale
 MATERIAL_INFO: dict[str, dict] = {
     "sbr": {
         "nimi": "SBR — Stüreen-butadieen",
@@ -220,13 +214,10 @@ MATERIAL_INFO: dict[str, dict] = {
 
 
 def translate_badge(raw: str) -> str:
-    """Tõlgib koodsõna loetavaks etiketiks. Eemaldab 'generalsheet' lisandi."""
     key = raw.strip().lower().replace("-", "_").replace(" ", "_")
-    # Eemalda "generalsheet" sufiks andmekvaliteedi mürana
     key = key.replace("generalsheet", "").replace("general_sheet", "").strip("_")
     if key in BADGE_LABELS:
         return BADGE_LABELS[key]
-    # Kui tõlge puudub, tee loetav: asenda _ tühikuga, Capitalize
     if key and key not in ("", "needs_classification"):
         return key.replace("_", " ").capitalize()
     return ""
@@ -251,10 +242,8 @@ def badge_line(values):
 
 
 def material_info_box(material_code: str) -> None:
-    """Kuvab materjali kohta lühikese infokasti."""
     info = MATERIAL_INFO.get(str(material_code).lower().replace("/", "").replace("-", "").replace("_", ""))
     if not info:
-        # Proovi lihtsustatud võtmega (nt "nbr_pvc" → "nbrpvc")
         info = MATERIAL_INFO.get(str(material_code).lower().replace("_", "").replace("-", "").replace("/", ""))
     if not info:
         return
@@ -288,8 +277,9 @@ nav = st.radio("", ["Soovitus", "Andmed", "Kontroll"], horizontal=True, label_vi
 
 st.markdown('<div class="hero"><h1>🧩 Zenith materjalisoovitaja</h1><p>Kiire otsing, selged soovitused ja nähtavad kontrollimärgid.</p></div>', unsafe_allow_html=True)
 
-with st.sidebar:
-    st.markdown('### 🔍 Filtrid')
+# FIX #4: Mobiilisõbralik sidebar – väikestel ekraanidel kuvatakse filtrid
+# kokkupandava expander'ina peamisel alal, mitte sidebaril.
+def render_filters():
     query = st.text_input("Kirjelda vajadust", placeholder="nt õlipaagi tihend 100 kraadi 70 Shore")
     example = st.selectbox("Kiirpäring", ["", "Õlipaagi tihend", "Lumesahk", "Food Grade", "UV EPDM", "CR tulekindel"])
     if example and not query:
@@ -305,7 +295,7 @@ with st.sidebar:
     selected_intent_labels = st.multiselect("Kasutus / omadus", list(intent_options.keys()))
     required_intents = [intent_options[x] for x in selected_intent_labels]
 
-    st.markdown('### Täpsed filtrid')
+    st.markdown("### Täpsed filtrid")
     use_temp = st.checkbox("Töötemperatuur")
     service_temp = st.number_input("°C", value=100.0, step=5.0) if use_temp else None
     use_hardness = st.checkbox("Kõvadus")
@@ -313,6 +303,12 @@ with st.sidebar:
     use_thickness = st.checkbox("Paksus")
     thickness = st.number_input("mm", value=5.0, step=0.5) if use_thickness else None
     limit = st.slider("Tulemusi", 3, 20, 8)
+    return query, required_materials, required_intents, service_temp, hardness, thickness, limit
+
+
+with st.sidebar:
+    st.markdown("### 🔍 Filtrid")
+    query, required_materials, required_intents, service_temp, hardness, thickness, limit = render_filters()
 
 results = recommend(query, data, required_materials, required_intents, service_temp, hardness, thickness, limit)
 
@@ -403,7 +399,6 @@ else:
     with st.expander("📖 Allikad"):
         src_df = as_df(data.get('sources', []))
         if not src_df.empty:
-            # Tõlgi staatuste veerud
             for col in ["source_status", "verification_status"]:
                 if col in src_df.columns:
                     src_df[col] = src_df[col].apply(translate_status)
